@@ -39,6 +39,7 @@ Setup the table:
 
 ### 5. Build the outputs
 
+`mkdir -p output`
 `python3 build.py`
 
 This will output the JSON Feed, RSS and HTML files to the `/output` directory. 
