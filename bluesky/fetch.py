@@ -1,6 +1,7 @@
 import sqlite3
 import requests
 import os
+import secrets
 
 # Absolute path to current directory
 path = os.path.dirname(__file__)
@@ -37,13 +38,12 @@ def clean_dict(raw_dict):
     return { k: ('' if v is None else v) for k, v in raw_dict.items() }
   
 # Bluesky login credentials
-BLUESKY_HANDLE = "example.bsky.social"
-BLUESKY_APP_PASSWORD = "wwww-xxxx-yyyy-zzzz"
+BLUESKY_HANDLE = "nelson.somebits.com"
 
 # Get JWT auth token
 resp = requests.post(
     "https://bsky.social/xrpc/com.atproto.server.createSession",
-    json={"identifier": BLUESKY_HANDLE, "password": BLUESKY_APP_PASSWORD},
+    json={"identifier": BLUESKY_HANDLE, "password": secrets.BLUESKY_APP_PASSWORD},
 )
 resp.raise_for_status()
 session = resp.json()
