@@ -61,8 +61,11 @@ def extractLinks(instance, snapshot, con, cur):
 				'snapshot': snapshot
 			}
 
-			query = "INSERT INTO links " + str(tuple(linkMeta.keys())) + " values" + str(tuple(clean_dict(linkMeta).values())) + ";"
-			cur.execute(query)
+			clean_meta = clean_dict(linkMeta)
+			columns = ', '.join(clean_meta.keys())
+			placeholders = ', '.join(['?'] * len(clean_meta))
+			query = f"INSERT INTO links ({columns}) VALUES ({placeholders});"
+			cur.execute(query, tuple(clean_meta.values()))
 			con.commit()
 
 	except requests.exceptions.RequestException as e:
