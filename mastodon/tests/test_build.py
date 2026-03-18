@@ -10,19 +10,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 import build
 
 @pytest.fixture
-def mock_db():
-    # Use an in-memory database for testing
-    con = sqlite3.connect(':memory:')
-    con.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
-    cur = con.cursor()
-
-    # Setup the database schema
-    with open(os.path.join(os.path.dirname(__file__), '..', 'setup.sql'), 'r') as f:
-        cur.executescript(f.read())
-
-    yield con, cur
-
-@pytest.fixture
 def test_page_html():
     with open(os.path.join(os.path.dirname(__file__), 'fixtures', 'test_page.html'), 'r') as f:
         return f.read()
