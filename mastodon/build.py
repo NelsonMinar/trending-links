@@ -1,4 +1,5 @@
 from datetime import datetime
+import zoneinfo
 import os
 import json
 import sqlite3
@@ -110,6 +111,10 @@ def main():
 		except Exception as e:
 			print("ERROR [LOAD]:", link['link'], "-", e)
 
+	# Load instances
+	with open(os.path.join(path, "servers.txt"), "r") as f:
+		instances = [line.strip() for line in f if line.strip()]
+
 	# Liquid template config
 	env = Environment(loader=FileSystemLoader(os.path.join(path, "templates/")))
 
@@ -118,10 +123,19 @@ def main():
 	rss_template = env.get_template("trending-links.xml")
 	html_template = env.get_template("trending-links.html")
 
+	# Timestamp in America/Los_Angeles
+	la_tz = zoneinfo.ZoneInfo("America/Los_Angeles")
+	now_la = datetime.now(la_tz)
+	timestamp = now_la.strftime("%Y-%m-%d %H:%M:%S %Z")
+
 	# Render into templates
 	json_feed = json_template.render(links=processed_links)
 	rss_feed = rss_template.render(links=processed_links)
-	html_feed = html_template.render(links=processed_links)
+	html_feed = html_template.render(
+		links=processed_links,
+		timestamp=timestamp,
+		instances=instances
+	)
 
 	# Create output directory if it doesn't exist
 	os.makedirs(os.path.join(path, "output"), exist_ok=True)

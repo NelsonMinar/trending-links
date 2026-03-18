@@ -148,6 +148,23 @@
 		      padding-top: 20px;
 		    }
 
+			.footer {
+				margin-top: 2rem;
+				padding: 1rem;
+				border-top: 1px solid #eee;
+				color: #999;
+				font-size: 0.8rem;
+				text-align: left;
+			}
+
+			.footer a {
+				color: #999;
+				text-decoration: underline;
+			}
+
+			.footer a:hover {
+				color: #5B9EE2;
+			}
 
 		</style>
 </head>
@@ -205,6 +222,16 @@
 			</a>
 			{% endfor -%}
 		</div>
+
+		<div class="footer">
+			<p>Generated: {{ timestamp }}</p>
+			<p>Sources:
+				{% for instance in instances -%}
+					<a href="https://{{ instance }}">{{ instance }}</a>{% unless forloop.last %}, {% endunless %}
+				{%- endfor %}
+			</p>
+		</div>
+
 	</div>
 </body>
 </html>

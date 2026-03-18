@@ -81,21 +81,8 @@ def main():
 	snapshot = int(time.time())
 
 	# Instance list
-	instances = [
-		"mastodon.social",
-		"mastodon.online",
-		"hachyderm.io",
-		"journa.host",
-		"mstdn.social",
-		"mas.to",
-		"mastodon.world",
-		"sfba.social",
-		"c.im",
-		"infosec.exchange",
-		"masto.ai",
-		"techhub.social",
-		"mastodon.sdf.org"
-	]
+	with open(os.path.join(path, "servers.txt"), "r") as f:
+		instances = [line.strip() for line in f if line.strip()]
 
 	print("SNAPSHOT START:", snapshot)
 
