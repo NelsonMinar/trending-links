@@ -1,6 +1,7 @@
 # Trending Links
 
-> [!NOTE]  
-> https://feditrends.com This repository lets you run the same code that was running there, with the same results.
+This repository includes the code which powers [Feditrends](https://feditrends.com/).
 
-This repository includes the code which previously powered both Mastodon (https://feditrends.com/) and Bluesky (https://feditrends.com/bluesky) versions of feditrends.
+The active code is in the directory `mastodon`. There's also a BlueSky version which stopped being used or maintained in 2024.
+
+This code was originally by @ummjackson. He handed the project off to @NelsonMinar. I am actively keeping the site running and working on the code a little (with Jules, the coding agent) as of March 2026.
