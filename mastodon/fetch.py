@@ -78,7 +78,22 @@ def main():
 	snapshot = int(time.time())
 
 	# Instance list
-	instances = ["mastodon.social", "mastodon.online", "hachyderm.io", "journa.host", "mstdn.social", "mas.to", "mastodon.world", "sfba.social", "c.im", "infosec.exchange", "sfba.social", "masto.ai", "techhub.social", "mastodon.sdf.org"]
+	instances = [
+		"mastodon.social",
+		"mastodon.online",
+		"hachyderm.io",
+		"journa.host",
+		"mstdn.social",
+		"mas.to",
+		"mastodon.world",
+		"sfba.social",
+		"c.im",
+		"infosec.exchange",
+		"sfba.social",
+		"masto.ai",
+		"techhub.social",
+		"mastodon.sdf.org"
+	]
 
 	print("SNAPSHOT START:", snapshot)
 
