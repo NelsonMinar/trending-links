@@ -89,7 +89,6 @@ def main():
 		"sfba.social",
 		"c.im",
 		"infosec.exchange",
-		"sfba.social",
 		"masto.ai",
 		"techhub.social",
 		"mastodon.sdf.org"
