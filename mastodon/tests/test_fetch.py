@@ -53,6 +53,34 @@ def test_extractLinks(mock_db, mock_mastodon_response):
     assert rows[1]['uses_total'] == 70
 
 @responses.activate
+def test_extractLinks_sql_injection(mock_db):
+    con, cur = mock_db
+
+    instance = "malicious.social"
+    malicious_url = "https://example.com/article'\" OR 1=1; --"
+    malicious_response = [
+        {
+            "url": malicious_url,
+            "history": [{"uses": "10"}, {"uses": "20"}],
+        }
+    ]
+    responses.add(
+        responses.GET,
+        f"https://{instance}/api/v1/trends/links",
+        json=malicious_response,
+        status=200
+    )
+
+    # Verify that malicious input doesn't break the SQL insertion
+    fetch.extractLinks(instance, 1234567890, con, cur)
+
+    cur.execute("SELECT * FROM links WHERE instance = ? AND link = ?", (instance, malicious_url))
+    rows = cur.fetchall()
+    # 5 iterations * 1 link per response = 5 rows
+    assert len(rows) == 5
+    assert rows[0]['link'] == malicious_url
+
+@responses.activate
 def test_extractLinks_request_exception(mock_db, capsys):
     con, cur = mock_db
     instance = "error.social"

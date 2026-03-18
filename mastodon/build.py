@@ -54,9 +54,7 @@ def main():
 	maxsnap = maxget.fetchone()["maxsnap"]
 
 	if maxsnap is not None:
-		cleansql = "DELETE FROM links WHERE snapshot != " + str(maxsnap) +  ";"
-
-	cur.execute(cleansql)
+		cur.execute("DELETE FROM links WHERE snapshot != ?", (maxsnap,))
 	con.commit()
 	con.execute("VACUUM")
 
