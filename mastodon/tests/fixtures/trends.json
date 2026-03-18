@@ -1,0 +1,58 @@
+[
+  {
+    "url": "https://example.com/article1",
+    "title": "Example Article 1",
+    "description": "This is a description for article 1.",
+    "type": "link",
+    "author_name": "Author 1",
+    "author_url": "https://example.com/author1",
+    "provider_name": "Example",
+    "provider_url": "https://example.com",
+    "html": "",
+    "width": 400,
+    "height": 300,
+    "image": "https://example.com/image1.jpg",
+    "embed_url": "",
+    "blurhash": "LEHLk~WB2yk8pyo0adR*.7kCMdnj",
+    "history": [
+      {
+        "day": "1699920000",
+        "uses": "100",
+        "accounts": "50"
+      },
+      {
+        "day": "1699833600",
+        "uses": "80",
+        "accounts": "40"
+      }
+    ]
+  },
+  {
+    "url": "https://example.com/article2",
+    "title": "Example Article 2",
+    "description": "This is a description for article 2.",
+    "type": "link",
+    "author_name": "Author 2",
+    "author_url": "https://example.com/author2",
+    "provider_name": "Example",
+    "provider_url": "https://example.com",
+    "html": "",
+    "width": 800,
+    "height": 600,
+    "image": "https://example.com/image2.jpg",
+    "embed_url": "",
+    "blurhash": "L36*~*0000000000000000000000",
+    "history": [
+      {
+        "day": "1699920000",
+        "uses": "50",
+        "accounts": "30"
+      },
+      {
+        "day": "1699833600",
+        "uses": "20",
+        "accounts": "15"
+      }
+    ]
+  }
+]
