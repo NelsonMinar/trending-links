@@ -19,17 +19,12 @@ def allowed_gai_family():
  
 urllib3_cn.allowed_gai_family = allowed_gai_family
 
-# Setup DB connection
-con = sqlite3.connect(os.path.join(path, "feditrends.db"))
-con.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
-cur = con.cursor()
-
 # Function: Helper to remove any None values from dict (borrowed from: https://stackoverflow.com/a/44528129)
 def clean_dict(raw_dict):
     return { k: ('' if v is None else v) for k, v in raw_dict.items() }
   
 # Function: Extract Links
-def extractLinks(instance, snapshot):
+def extractLinks(instance, snapshot, con, cur):
 
 	links = []
 
@@ -73,21 +68,30 @@ def extractLinks(instance, snapshot):
 	except requests.exceptions.RequestException as e:
 			print("ERROR:", e)
 
-# Snapshot timetamp
-snapshot = int(time.time())
+def main():
+	# Setup DB connection
+	con = sqlite3.connect(os.path.join(path, "feditrends.db"))
+	con.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
+	cur = con.cursor()
 
-# Instance list
-instances = ["mastodon.social", "mastodon.online", "hachyderm.io", "journa.host", "mstdn.social", "mas.to", "mastodon.world", "sfba.social", "c.im", "infosec.exchange", "sfba.social", "masto.ai", "techhub.social", "mastodon.sdf.org"]
+	# Snapshot timetamp
+	snapshot = int(time.time())
 
-print("SNAPSHOT START:", snapshot)
+	# Instance list
+	instances = ["mastodon.social", "mastodon.online", "hachyderm.io", "journa.host", "mstdn.social", "mas.to", "mastodon.world", "sfba.social", "c.im", "infosec.exchange", "sfba.social", "masto.ai", "techhub.social", "mastodon.sdf.org"]
 
-# Loop through instances
-for instance in instances:
-	print("INSTANCE START:", instance)
-	extractLinks(instance, snapshot)
-	print("INSTANCE COMPLETE:", instance)
+	print("SNAPSHOT START:", snapshot)
 
-print("SNAPSHOT COMPLETE:", snapshot)
+	# Loop through instances
+	for instance in instances:
+		print("INSTANCE START:", instance)
+		extractLinks(instance, snapshot, con, cur)
+		print("INSTANCE COMPLETE:", instance)
+
+	print("SNAPSHOT COMPLETE:", snapshot)
+
+if __name__ == "__main__":
+	main()
 
 
 
