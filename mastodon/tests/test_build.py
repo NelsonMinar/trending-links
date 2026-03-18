@@ -70,11 +70,12 @@ def test_build_algorithm_and_output(mock_db, test_page_html, tmpdir):
             status=200
         )
 
-        # We must copy templates to the tmpdir so Environment can find them
+        # We must copy templates and servers.txt to the tmpdir so Environment can find them
         os.makedirs(os.path.join(tmpdir, "templates"), exist_ok=True)
         import shutil
         for tpl in ["trending-links.json", "trending-links.xml", "trending-links.html"]:
             shutil.copy(os.path.join(real_path, "templates", tpl), os.path.join(tmpdir, "templates", tpl))
+        shutil.copy(os.path.join(real_path, "servers.txt"), os.path.join(tmpdir, "servers.txt"))
 
         # Mock linkpreview.LinkGrabber instead of requests directly
         # because the internal implementation might not just use requests.get in a simple way
