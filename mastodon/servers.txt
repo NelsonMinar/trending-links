@@ -1,5 +1,7 @@
 c.im
+fosstodon.org
 hachyderm.io
+indieweb.social
 infosec.exchange
 journa.host
 mas.to
@@ -9,5 +11,9 @@ mastodon.sdf.org
 mastodon.social
 mastodon.world
 mstdn.social
+newsie.social
 sfba.social
+tech.lgbt
 techhub.social
+universeodon.com
+zirk.us
