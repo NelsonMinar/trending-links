@@ -11,6 +11,15 @@ This has been tested on Python 3.11.7 but not extensively on other versions. You
 
 ### 1. Install dependencies
 
+It is highly recommended to use a virtual environment to manage dependencies:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+Then install the dependencies:
+
 `pip3 install -r requirements.txt`
 
 ### 2. Configure instance list
@@ -45,6 +54,14 @@ Setup the table:
 This will output the JSON Feed, RSS and HTML files to the `/output` directory. 
 
 In a production environment, you should automate Steps 4 & 5 to run periodically with something like crontab, every 30 minutes or so. 
+
+## Running Tests
+
+To run the automated tests, ensure you are in the virtual environment with all dependencies installed (including `pytest` and `responses`). Then run:
+
+```bash
+PYTHONPATH=. python3 -m pytest tests/
+```
 
 ## The MIT License (MIT)
 Copyright (c) 2024 feditrends
