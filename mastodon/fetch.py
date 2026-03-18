@@ -1,77 +1,50 @@
-from datetime import datetime
+import asyncio
 import os
 import time
-from time import sleep
 import json
-import requests
-from bs4 import BeautifulSoup
+import httpx
 import sqlite3
 import socket
-import requests.packages.urllib3.util.connection as urllib3_cn
 
 # Absolute path to current directory
 path = os.path.dirname(__file__)
-
-# Hack to for IPv4 for Requests, to avoid IPv6 timeout issues
-def allowed_gai_family():
-    family = socket.AF_INET    # force IPv4
-    return family
- 
-urllib3_cn.allowed_gai_family = allowed_gai_family
 
 # Function: Helper to remove any None values from dict (borrowed from: https://stackoverflow.com/a/44528129)
 def clean_dict(raw_dict):
     return { k: ('' if v is None else v) for k, v in raw_dict.items() }
   
 # Function: Extract Links
-def extractLinks(instance, snapshot, con, cur):
-
+async def extractLinks(instance, snapshot, client, semaphore):
 	links = []
+	# Construct URL
+	links_url = "https://" + instance + "/api/v1/trends/links"
 
-	# Make the instance request
-	try:
+	async with semaphore:
+		print("INSTANCE START:", instance)
+		try:
+			for i in range(0, 5):
+				# Set request parameters
+				params = {
+					'limit': 20,
+					'offset': i * 20
+				}
 
-		# Construct URL
-		links_url = "https://" + instance + "/api/v1/trends/links"
+				response = await client.get(url=links_url, params=params, timeout=10)
+				response.raise_for_status()
+				new_links = response.json()
+				links = links + new_links
 
-		for i in range(0, 5):
+				# Sleep for 100ms so we're not bombarding the server
+				await asyncio.sleep(0.1)
 
-			# Set request parameters
-			params = {
-				'limit': 20,
-				'offset': i * 20
-			}
+			print("INSTANCE COMPLETE:", instance)
+			return instance, links
 
-			new_links = requests.get(url = links_url, params = params, headers = {'Connection': 'close'}, timeout=10)
+		except Exception as e:
+			print(f"ERROR [{instance}]:", e)
+			return instance, []
 
-			links = links + new_links.json()
-
-			# Sleep for 100ms so we're not bombarding the server
-			sleep(0.1)
-
-		# Loop through links
-		for index, link in enumerate(links, start=1):
-
-			linkMeta = {
-				'link': link['url'],
-				'rank': index,
-				'uses_1d': int(link['history'][0]['uses']),
-				'uses_total': sum(int(activity['uses']) for activity in link['history']),
-				'instance': instance,
-				'snapshot': snapshot
-			}
-
-			clean_meta = clean_dict(linkMeta)
-			columns = ', '.join(clean_meta.keys())
-			placeholders = ', '.join(['?'] * len(clean_meta))
-			query = f"INSERT INTO links ({columns}) VALUES ({placeholders});"
-			cur.execute(query, tuple(clean_meta.values()))
-			con.commit()
-
-	except requests.exceptions.RequestException as e:
-			print("ERROR:", e)
-
-def main():
+async def main():
 	# Setup DB connection
 	con = sqlite3.connect(os.path.join(path, "feditrends.db"))
 	con.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
@@ -86,20 +59,41 @@ def main():
 
 	print("SNAPSHOT START:", snapshot)
 
-	# Loop through instances
-	for instance in instances:
-		print("INSTANCE START:", instance)
-		extractLinks(instance, snapshot, con, cur)
-		print("INSTANCE COMPLETE:", instance)
+	semaphore = asyncio.Semaphore(10)
+
+	# Use a custom transport to force IPv4 if needed
+	# httpx doesn't have an easy way to force IPv4 globally like requests/urllib3 hack
+	# but we can try to use a transport with a custom limits or just let it be.
+	# If IPv6 is a problem, usually it's better to handle it at the OS level or
+	# use a custom resolver.
+
+	async with httpx.AsyncClient(headers={'Connection': 'close'}, follow_redirects=True) as client:
+		tasks = [extractLinks(instance, snapshot, client, semaphore) for instance in instances]
+		results = await asyncio.gather(*tasks)
+
+	# Loop through results and write to DB
+	for instance, links in results:
+		# Loop through links
+		for index, link in enumerate(links, start=1):
+			linkMeta = {
+				'link': link['url'],
+				'rank': index,
+				'uses_1d': int(link['history'][0]['uses']),
+				'uses_total': sum(int(activity['uses']) for activity in link['history']),
+				'instance': instance,
+				'snapshot': snapshot
+			}
+
+			clean_meta = clean_dict(linkMeta)
+			columns = ', '.join(clean_meta.keys())
+			placeholders = ', '.join(['?'] * len(clean_meta))
+			query = f"INSERT INTO links ({columns}) VALUES ({placeholders});"
+			cur.execute(query, tuple(clean_meta.values()))
+
+		con.commit()
 
 	print("SNAPSHOT COMPLETE:", snapshot)
+	con.close()
 
 if __name__ == "__main__":
-	main()
-
-
-
-
-
-
-
+	asyncio.run(main())

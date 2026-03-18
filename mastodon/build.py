@@ -1,10 +1,10 @@
+import asyncio
+import httpx
 from datetime import datetime
 import zoneinfo
 import os
 import json
 import sqlite3
-import socket
-import requests.packages.urllib3.util.connection as urllib3_cn
 from linkpreview import Link, LinkPreview, LinkGrabber
 from liquid import Environment
 from liquid import FileSystemLoader
@@ -12,7 +12,48 @@ from liquid import FileSystemLoader
 # Absolute path to current directory
 path = os.path.dirname(__file__)
 
-def main():
+async def process_link(link, client, semaphore):
+	async with semaphore:
+		print("BEGIN:", link['link'])
+
+		try:
+			headers = {}
+
+			# To avoid forced login
+			if "twitter.com" in link['link']:
+				headers = {'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'}
+			# Look like a regular browser
+			else:
+				headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36'}
+
+			response = await client.get(link['link'], headers=headers, follow_redirects=True, timeout=15)
+			response.raise_for_status()
+
+			fetch_link = Link(str(response.url), response.text)
+			preview = LinkPreview(fetch_link, parser="lxml")
+
+			processed_link = {
+				'url': link['link'],
+				'title': preview.force_title,
+				'description': preview.description,
+				'image': preview.absolute_image,
+				'share_count': link['shares'],
+				'rank': link['rank'],
+				'domain': preview.link.netloc.upper().replace("WWW.","")
+			}
+
+			if processed_link['title'] is not None:
+				print("SUCCESS:", link['link'])
+				return processed_link
+			else:
+				print("ERROR [PREVIEW]:", link['link'])
+				return None
+
+		except Exception as e:
+			print("ERROR [LOAD]:", link['link'], "-", e)
+			return None
+
+async def main():
 	# Setup DB connection
 	con = sqlite3.connect(os.path.join(path, "feditrends.db"))
 	con.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
@@ -52,7 +93,8 @@ def main():
 	"""
 
 	maxget = cur.execute(maxsql)
-	maxsnap = maxget.fetchone()["maxsnap"]
+	maxsnap_row = maxget.fetchone()
+	maxsnap = maxsnap_row["maxsnap"] if maxsnap_row else None
 
 	if maxsnap is not None:
 		cur.execute("DELETE FROM links WHERE snapshot != ?", (maxsnap,))
@@ -61,55 +103,13 @@ def main():
 
 	print("Old snapshots cleaned up")
 
-	# Hack to for IPv4 for Requests, to avoid IPv6 timeout issues
-	def allowed_gai_family():
-		family = socket.AF_INET    # force IPv4
-		return family
-
-	urllib3_cn.allowed_gai_family = allowed_gai_family
-
 	processed_links = []
+	semaphore = asyncio.Semaphore(10)
 
-	for link in links:
-
-		print("BEGIN:", link['link'])
-
-		try:
-
-			headers = {}
-
-			# To avoid forced login
-			if "twitter.com" in link['link']:
-				headers = {'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'}
-
-			# Look like a regular browser
-			else:
-				headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36'}
-
-			grabber = LinkGrabber()
-			content, url = grabber.get_content(link['link'], headers=headers)
-			fetch_link = Link(url, content)
-			preview = LinkPreview(fetch_link, parser="lxml")
-
-			processed_link = {
-				'url': link['link'],
-				'title': preview.force_title,
-				'description': preview.description,
-				'image': preview.absolute_image,
-				'share_count': link['shares'],
-				'rank': link['rank'],
-				'domain': preview.link.netloc.upper().replace("WWW.","")
-			}
-
-			if processed_link['title'] is not None:
-				processed_links.append(processed_link)
-				print("SUCCESS:", link['link'])
-
-			else:
-				print("ERROR [PREVIEW]:", link['link'])
-
-		except Exception as e:
-			print("ERROR [LOAD]:", link['link'], "-", e)
+	async with httpx.AsyncClient(headers={'Connection': 'close'}, follow_redirects=True) as client:
+		tasks = [process_link(link, client, semaphore) for link in links]
+		results = await asyncio.gather(*tasks)
+		processed_links = [res for res in results if res is not None]
 
 	# Load instances
 	with open(os.path.join(path, "servers.txt"), "r") as f:
@@ -141,19 +141,16 @@ def main():
 	os.makedirs(os.path.join(path, "output"), exist_ok=True)
 
 	# Write JSON Feed
-	json_file = open(os.path.join(path, "output/trending-links.json"), "w")
-	json_file.write(json_feed)
-	json_file.close()
+	with open(os.path.join(path, "output/trending-links.json"), "w") as json_file:
+		json_file.write(json_feed)
 
 	# Write RSS
-	rss_file = open(os.path.join(path, "output/trending-links.xml"), "w")
-	rss_file.write(rss_feed)
-	rss_file.close()
+	with open(os.path.join(path, "output/trending-links.xml"), "w") as rss_file:
+		rss_file.write(rss_feed)
 
 	# Write HTML
-	html_file = open(os.path.join(path, "output/trending-links.html"), "w")
-	html_file.write(html_feed)
-	html_file.close()
+	with open(os.path.join(path, "output/trending-links.html"), "w") as html_file:
+		html_file.write(html_feed)
 
 if __name__ == "__main__":
-	main()
+	asyncio.run(main())
