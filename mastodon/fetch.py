@@ -4,7 +4,6 @@ import time
 import json
 import httpx
 import sqlite3
-import socket
 
 # Absolute path to current directory
 path = os.path.dirname(__file__)
