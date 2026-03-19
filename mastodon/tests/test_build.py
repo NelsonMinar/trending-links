@@ -2,9 +2,11 @@ import os
 import sqlite3
 import json
 import pytest
-import responses
+import respx
+import httpx
 from unittest import mock
 import sys
+import shutil
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import build
@@ -44,8 +46,8 @@ def populate_test_data(cur):
         cur.execute("INSERT INTO links (link, rank, uses_1d, uses_total, instance, snapshot) VALUES (?, ?, ?, ?, ?, ?)",
                     ("https://example.com/D", 1, 1000, 2000, f"inst{i}", snapshot - 100))
 
-@responses.activate
-def test_build_algorithm_and_output(mock_db, test_page_html, tmpdir):
+@pytest.mark.asyncio
+async def test_build_algorithm_and_output(mock_db, test_page_html, tmpdir):
     con, cur = mock_db
     populate_test_data(cur)
     con.commit()
@@ -53,43 +55,25 @@ def test_build_algorithm_and_output(mock_db, test_page_html, tmpdir):
     # Change the output path to a temporary directory so we don't overwrite real files
     with mock.patch('build.path', str(tmpdir)):
 
-        # We need to mock the template loading path differently since we changed `build.path`
         real_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-
-        # Mock LinkGrabber content fetching to return our fixture
-        responses.add(
-            responses.GET,
-            "https://example.com/A",
-            body=test_page_html,
-            status=200
-        )
-        responses.add(
-            responses.GET,
-            "https://example.com/B",
-            body=test_page_html,
-            status=200
-        )
 
         # We must copy templates and servers.txt to the tmpdir so Environment can find them
         os.makedirs(os.path.join(tmpdir, "templates"), exist_ok=True)
-        import shutil
         for tpl in ["trending-links.json", "trending-links.xml", "trending-links.html"]:
             shutil.copy(os.path.join(real_path, "templates", tpl), os.path.join(tmpdir, "templates", tpl))
         shutil.copy(os.path.join(real_path, "servers.txt"), os.path.join(tmpdir, "servers.txt"))
 
-        # Mock linkpreview.LinkGrabber instead of requests directly
-        # because the internal implementation might not just use requests.get in a simple way
-        with mock.patch('build.LinkGrabber') as mock_grabber_class:
-            mock_grabber = mock.Mock()
-            # Return our test HTML string when get_content is called
-            mock_grabber.get_content.return_value = (test_page_html.encode('utf-8'), "https://example.com/mock-url")
-            mock_grabber_class.return_value = mock_grabber
+        with respx.mock:
+            # Mock the requests for link previews
+            respx.get("https://example.com/A").mock(
+                return_value=httpx.Response(200, content=test_page_html)
+            )
+            respx.get("https://example.com/B").mock(
+                return_value=httpx.Response(200, content=test_page_html)
+            )
 
-            # Mock sqlite3.connect to return our in-memory DB connection
-            with mock.patch('sqlite3.connect', return_value=con):
-                # Run the build process
-                with mock.patch('build.path', str(tmpdir)):
-                    build.main()
+            # Pass the in-memory DB connection to build.main
+            await build.main(con=con)
 
         # 1. Verify that Old Snapshots were deleted
         cur.execute("SELECT count(*) as count FROM links WHERE link = 'https://example.com/D'")
@@ -115,7 +99,6 @@ def test_build_algorithm_and_output(mock_db, test_page_html, tmpdir):
         assert items[1]["url"] == "https://example.com/B"
 
         # 4. Verify Link preview meta mapping
-        # Linkpreview prefers OpenGraph tags over standard meta tags
         assert items[0]["title"] == "Open Graph Test Title"
         assert items[0]["content_text"] == "Open Graph Test Description"
         assert items[0]["image"] == "https://example.com/test-image.jpg"
