@@ -1,105 +1,94 @@
+import asyncio
+import httpx
 from datetime import datetime
 import os
 import time
-from time import sleep
 import json
-import requests
 from bs4 import BeautifulSoup
 import sqlite3
-import socket
-import requests.packages.urllib3.util.connection as urllib3_cn
 
 # Absolute path to current directory
 path = os.path.dirname(__file__)
 
-# Hack to for IPv4 for Requests, to avoid IPv6 timeout issues
-def allowed_gai_family():
-    family = socket.AF_INET    # force IPv4
-    return family
- 
-urllib3_cn.allowed_gai_family = allowed_gai_family
-
 # Function: Helper to remove any None values from dict (borrowed from: https://stackoverflow.com/a/44528129)
 def clean_dict(raw_dict):
     return { k: ('' if v is None else v) for k, v in raw_dict.items() }
-  
-# Function: Extract Links
-def extractLinks(instance, snapshot, con, cur):
 
-	links = []
+# Function: Extract Links for a single instance
+async def extractLinks(instance, snapshot, client, semaphore):
+    async with semaphore:
+        links = []
+        try:
+            # Construct URL
+            links_url = "https://" + instance + "/api/v1/trends/links"
 
-	# Make the instance request
-	try:
+            for i in range(0, 5):
+                # Set request parameters
+                params = {
+                    'limit': 20,
+                    'offset': i * 20
+                }
 
-		# Construct URL
-		links_url = "https://" + instance + "/api/v1/trends/links"
+                response = await client.get(url=links_url, params=params, timeout=10)
+                response.raise_for_status()
+                links = links + response.json()
 
-		for i in range(0, 5):
+                # Sleep for 100ms so we're not bombarding the server
+                await asyncio.sleep(0.1)
 
-			# Set request parameters
-			params = {
-				'limit': 20,
-				'offset': i * 20
-			}
+            results = []
+            # Loop through links
+            for index, link in enumerate(links, start=1):
+                linkMeta = {
+                    'link': link['url'],
+                    'rank': index,
+                    'uses_1d': int(link['history'][0]['uses']),
+                    'uses_total': sum(int(activity['uses']) for activity in link['history']),
+                    'instance': instance,
+                    'snapshot': snapshot
+                }
+                results.append(clean_dict(linkMeta))
 
-			new_links = requests.get(url = links_url, params = params, headers = {'Connection': 'close'}, timeout=10)
+            print("INSTANCE COMPLETE:", instance)
+            return results
 
-			links = links + new_links.json()
+        except Exception as e:
+            print(f"ERROR [{instance}]:", e)
+            return []
 
-			# Sleep for 100ms so we're not bombarding the server
-			sleep(0.1)
+async def main():
+    # Setup DB connection
+    con = sqlite3.connect(os.path.join(path, "feditrends.db"))
+    con.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
+    cur = con.cursor()
 
-		# Loop through links
-		for index, link in enumerate(links, start=1):
+    # Snapshot timestamp
+    snapshot = int(time.time())
 
-			linkMeta = {
-				'link': link['url'],
-				'rank': index,
-				'uses_1d': int(link['history'][0]['uses']),
-				'uses_total': sum(int(activity['uses']) for activity in link['history']),
-				'instance': instance,
-				'snapshot': snapshot
-			}
+    # Instance list
+    with open(os.path.join(path, "servers.txt"), "r") as f:
+        instances = [line.strip() for line in f if line.strip()]
 
-			clean_meta = clean_dict(linkMeta)
-			columns = ', '.join(clean_meta.keys())
-			placeholders = ', '.join(['?'] * len(clean_meta))
-			query = f"INSERT INTO links ({columns}) VALUES ({placeholders});"
-			cur.execute(query, tuple(clean_meta.values()))
-			con.commit()
+    print("SNAPSHOT START:", snapshot)
 
-	except requests.exceptions.RequestException as e:
-			print("ERROR:", e)
+    semaphore = asyncio.Semaphore(10)
 
-def main():
-	# Setup DB connection
-	con = sqlite3.connect(os.path.join(path, "feditrends.db"))
-	con.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
-	cur = con.cursor()
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        tasks = [extractLinks(instance, snapshot, client, semaphore) for instance in instances]
+        all_results = await asyncio.gather(*tasks)
 
-	# Snapshot timetamp
-	snapshot = int(time.time())
+    # Flatten results and insert into DB sequentially
+    for instance_results in all_results:
+        for clean_meta in instance_results:
+            columns = ', '.join(clean_meta.keys())
+            placeholders = ', '.join(['?'] * len(clean_meta))
+            query = f"INSERT INTO links ({columns}) VALUES ({placeholders});"
+            cur.execute(query, tuple(clean_meta.values()))
 
-	# Instance list
-	with open(os.path.join(path, "servers.txt"), "r") as f:
-		instances = [line.strip() for line in f if line.strip()]
+    con.commit()
+    con.close()
 
-	print("SNAPSHOT START:", snapshot)
-
-	# Loop through instances
-	for instance in instances:
-		print("INSTANCE START:", instance)
-		extractLinks(instance, snapshot, con, cur)
-		print("INSTANCE COMPLETE:", instance)
-
-	print("SNAPSHOT COMPLETE:", snapshot)
+    print("SNAPSHOT COMPLETE:", snapshot)
 
 if __name__ == "__main__":
-	main()
-
-
-
-
-
-
-
+    asyncio.run(main())

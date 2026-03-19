@@ -2,9 +2,12 @@ import os
 import sqlite3
 import json
 import pytest
+import respx
+import httpx
 from unittest import mock
 import sys
 from bs4 import BeautifulSoup
+import shutil
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import build
@@ -25,10 +28,6 @@ def test_page_html():
 
 def populate_test_data(cur):
     snapshot = 1000
-    # Link A: 3 instances, 1000 shares.
-    # Link B: 1 instance, 500 shares.
-    # We need > 5 instances for the current build.py filter, so let's adjust.
-
     # Link A: 7 instances
     for i in range(7):
         cur.execute("INSERT INTO links (link, rank, uses_1d, uses_total, instance, snapshot) VALUES (?, ?, ?, ?, ?, ?)",
@@ -39,7 +38,8 @@ def populate_test_data(cur):
         cur.execute("INSERT INTO links (link, rank, uses_1d, uses_total, instance, snapshot) VALUES (?, ?, ?, ?, ?, ?)",
                     ("https://example.com/B", 2, 500, 1000, f"inst{i}", snapshot))
 
-def test_stats_and_sorting(mock_db, test_page_html, tmpdir):
+@pytest.mark.asyncio
+async def test_stats_and_sorting(mock_db, test_page_html, tmpdir):
     con, cur = mock_db
     populate_test_data(cur)
     con.commit()
@@ -52,18 +52,20 @@ def test_stats_and_sorting(mock_db, test_page_html, tmpdir):
 
     os.makedirs(os.path.join(tmpdir, "templates"), exist_ok=True)
     real_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    import shutil
     for tpl in ["trending-links.json", "trending-links.xml", "trending-links.html"]:
         shutil.copy(os.path.join(real_path, "templates", tpl), os.path.join(tmpdir, "templates", tpl))
 
-    with mock.patch('build.LinkGrabber') as mock_grabber_class:
-        mock_grabber = mock.Mock()
-        mock_grabber.get_content.return_value = (test_page_html.encode('utf-8'), "https://example.com/mock-url")
-        mock_grabber_class.return_value = mock_grabber
+    with respx.mock:
+        # Mock the requests for link previews
+        respx.get("https://example.com/A").mock(
+            return_value=httpx.Response(200, content=test_page_html)
+        )
+        respx.get("https://example.com/B").mock(
+            return_value=httpx.Response(200, content=test_page_html)
+        )
 
-        with mock.patch('sqlite3.connect', return_value=con):
-            with mock.patch('build.path', str(tmpdir)):
-                build.main()
+        with mock.patch('build.path', str(tmpdir)):
+            await build.main(con=con)
 
     # Verify HTML output for stats
     with open(os.path.join(tmpdir, "output", "trending-links.html"), "r") as f:
@@ -86,11 +88,7 @@ def test_stats_and_sorting(mock_db, test_page_html, tmpdir):
     assert "6 sources" in links[1].get_text()
 
     # 3. Check sorted instances in footer
-    # inst0 through inst5 contributed to both A and B (2 links)
-    # inst6 only contributed to A (1 link)
-    # So inst0-inst5 should come before inst6
     sources_text = footer.find_all('p')[-1].get_text()
-    # It looks like "Sources: inst0, inst1, ..."
     sources_list = [s.strip() for s in sources_text.replace("Sources:", "").split(",")]
 
     # inst6 should be at the end
