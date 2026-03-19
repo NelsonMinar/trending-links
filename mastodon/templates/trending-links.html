@@ -216,7 +216,7 @@
 				<div>
 					{% if forloop.index <= 10 %}<span>#{{ forloop.index }} TRENDING</span>{% endif %}
 				    <h3>{{ link.title | strip_newlines | strip }}</h3>
-				    <span>{{ link.domain }}</span>
+				    <span>{{ link.domain }} &bull; {{ link.share_count }} shares &bull; {{ link.instance_count }} sources</span>
 			 	</div>
 			</div>
 			</a>
@@ -224,6 +224,7 @@
 		</div>
 
 		<div class="footer">
+			<p>Stories: {{ story_count }}</p>
 			<p>Generated: {{ timestamp }}</p>
 			<p>Sources:
 				{% for instance in instances -%}
