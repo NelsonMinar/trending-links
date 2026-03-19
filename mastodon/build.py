@@ -38,6 +38,7 @@ async def process_link(link, client, semaphore):
 				'description': preview.description,
 				'image': preview.absolute_image,
 				'share_count': link['shares'],
+				'instance_count': link['instances'],
 				'rank': link['rank'],
 				'domain': preview.link.netloc.upper().replace("WWW.","")
 			}
@@ -64,6 +65,7 @@ async def main():
 		SELECT
 			link,
 			shares,
+			instances,
 			row_number() over (order by score desc) as rank
 		FROM
 			(SELECT
@@ -86,6 +88,18 @@ async def main():
 	res = cur.execute(sql)
 	links = res.fetchall()
 
+	# Get raw link data to associate with instances for contribution stats
+	raw_sql = """
+		SELECT link, instance
+		FROM links
+		INNER JOIN (
+			SELECT max(snapshot) as latest_snapshot
+			FROM links
+		) snapshots ON links.snapshot = snapshots.latest_snapshot
+	"""
+	cur.execute(raw_sql)
+	raw_links = cur.fetchall()
+
 	# Clean up old snapshots
 	maxsql = """
 		SELECT max(snapshot) as maxsnap
@@ -104,16 +118,31 @@ async def main():
 	print("Old snapshots cleaned up")
 
 	processed_links = []
+	link_urls = set()
 	semaphore = asyncio.Semaphore(10)
 
 	async with httpx.AsyncClient(headers={'Connection': 'close'}, follow_redirects=True) as client:
 		tasks = [process_link(link, client, semaphore) for link in links]
 		results = await asyncio.gather(*tasks)
-		processed_links = [res for res in results if res is not None]
+		for res in results:
+			if res is not None:
+				processed_links.append(res)
+				link_urls.add(res['url'])
 
-	# Load instances
+	# Load instances and count contributions for processed links
+	instance_contributions = {}
 	with open(os.path.join(path, "servers.txt"), "r") as f:
-		instances = [line.strip() for line in f if line.strip()]
+		for line in f:
+			instance = line.strip()
+			if instance:
+				instance_contributions[instance] = 0
+
+	for raw in raw_links:
+		if raw['link'] in link_urls and raw['instance'] in instance_contributions:
+			instance_contributions[raw['instance']] += 1
+
+	# Sort instances by contribution count (descending)
+	sorted_instances = sorted(instance_contributions.keys(), key=lambda x: instance_contributions[x], reverse=True)
 
 	# Liquid template config
 	env = Environment(loader=FileSystemLoader(os.path.join(path, "templates/")))
@@ -134,7 +163,8 @@ async def main():
 	html_feed = html_template.render(
 		links=processed_links,
 		timestamp=timestamp,
-		instances=instances
+		instances=sorted_instances,
+		story_count=len(processed_links)
 	)
 
 	# Create output directory if it doesn't exist

@@ -61,12 +61,6 @@ async def main():
 
 	semaphore = asyncio.Semaphore(10)
 
-	# Use a custom transport to force IPv4 if needed
-	# httpx doesn't have an easy way to force IPv4 globally like requests/urllib3 hack
-	# but we can try to use a transport with a custom limits or just let it be.
-	# If IPv6 is a problem, usually it's better to handle it at the OS level or
-	# use a custom resolver.
-
 	async with httpx.AsyncClient(headers={'Connection': 'close'}, follow_redirects=True) as client:
 		tasks = [extractLinks(instance, snapshot, client, semaphore) for instance in instances]
 		results = await asyncio.gather(*tasks)
