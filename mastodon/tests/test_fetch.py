@@ -34,15 +34,22 @@ async def test_extractLinks(mock_db, mock_mastodon_response):
             results = await fetch.extractLinks(instance, snapshot_time, client, semaphore)
 
         # Verify results returned by extractLinks
+        # We expect 10 results (5 iterations * 2 links per response)
         assert len(results) == 10
 
-        # Verify the content
+        # Check the first row
         assert results[0]['link'] == "https://example.com/article1"
         assert results[0]['rank'] == 1
         assert results[0]['uses_1d'] == 100
         assert results[0]['uses_total'] == 180
         assert results[0]['instance'] == instance
         assert results[0]['snapshot'] == snapshot_time
+
+        # Check the second row
+        assert results[1]['link'] == "https://example.com/article2"
+        assert results[1]['rank'] == 2
+        assert results[1]['uses_1d'] == 50
+        assert results[1]['uses_total'] == 70
 
 @pytest.mark.asyncio
 async def test_extractLinks_sql_injection(mock_db):
