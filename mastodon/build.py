@@ -154,9 +154,14 @@ async def main(con=None):
     now_la = datetime.now(la_tz)
     timestamp = now_la.strftime("%Y-%m-%d %H:%M:%S %Z")
 
+    # Calculate cutoff for RSS feed
+    total_instances = len(sorted_instances)
+    rss_min_instances = total_instances * 0.75
+    rss_links = [link for link in processed_links if link['instance_count'] > rss_min_instances]
+
     # Render into templates
     json_feed = json_template.render(links=processed_links)
-    rss_feed = rss_template.render(links=processed_links)
+    rss_feed = rss_template.render(links=rss_links)
     html_feed = html_template.render(
         links=processed_links,
         timestamp=timestamp,
