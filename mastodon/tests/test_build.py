@@ -36,6 +36,13 @@ def populate_test_data(cur):
         cur.execute("INSERT INTO links (link, rank, uses_1d, uses_total, instance, snapshot) VALUES (?, ?, ?, ?, ?, ?)",
                     ("https://example.com/B", 10, 500, 1000, f"inst{i}", snapshot))
 
+    # Link E: very high instance count (15), high uses (2000), great rank (1)
+    # Score: (15 * 2000) / 1 = 30000
+    # Should be included in RSS feed (15 > 0.75 * 19)
+    for i in range(15):
+        cur.execute("INSERT INTO links (link, rank, uses_1d, uses_total, instance, snapshot) VALUES (?, ?, ?, ?, ?, ?)",
+                    ("https://example.com/E", 1, 2000, 4000, f"inst{i}", snapshot))
+
     # Link C: too few instances (5). Should be filtered out.
     for i in range(5):
         cur.execute("INSERT INTO links (link, rank, uses_1d, uses_total, instance, snapshot) VALUES (?, ?, ?, ?, ?, ?)",
@@ -71,6 +78,9 @@ async def test_build_algorithm_and_output(mock_db, test_page_html, tmpdir):
             respx.get("https://example.com/B").mock(
                 return_value=httpx.Response(200, content=test_page_html)
             )
+            respx.get("https://example.com/E").mock(
+                return_value=httpx.Response(200, content=test_page_html)
+            )
 
             # Pass the in-memory DB connection to build.main
             await build.main(con=con)
@@ -91,14 +101,25 @@ async def test_build_algorithm_and_output(mock_db, test_page_html, tmpdir):
         items = feed.get("items", [])
 
         # Link C is filtered out due to HAVING instances > 5. Link D is deleted.
-        # Only Link A and B should remain.
-        assert len(items) == 2
+        # Links E, A, and B should remain.
+        assert len(items) == 3
 
-        # Link A has score 6000, Link B has score 300, so Link A should be first.
-        assert items[0]["url"] == "https://example.com/A"
-        assert items[1]["url"] == "https://example.com/B"
+        # Link E has score 30000, Link A has score 6000, Link B has score 300
+        assert items[0]["url"] == "https://example.com/E"
+        assert items[1]["url"] == "https://example.com/A"
+        assert items[2]["url"] == "https://example.com/B"
 
         # 4. Verify Link preview meta mapping
         assert items[0]["title"] == "Open Graph Test Title"
         assert items[0]["content_text"] == "Open Graph Test Description"
         assert items[0]["image"] == "https://example.com/test-image.jpg"
+
+        # 5. Verify RSS output
+        import xml.etree.ElementTree as ET
+        tree = ET.parse(os.path.join(tmpdir, "output", "trending-links.xml"))
+        root = tree.getroot()
+        rss_items = root.findall("./channel/item")
+
+        # In RSS, only Link E should be included (15 > 0.75 * 19)
+        assert len(rss_items) == 1
+        assert rss_items[0].find("link").text == "https://example.com/E"
