@@ -1,5 +1,5 @@
 import asyncio
-import httpx
+import niquests
 from datetime import datetime
 import os
 import time
@@ -73,7 +73,7 @@ async def main():
 
     semaphore = asyncio.Semaphore(10)
 
-    async with httpx.AsyncClient(follow_redirects=True) as client:
+    async with niquests.AsyncSession() as client:
         tasks = [extractLinks(instance, snapshot, client, semaphore) for instance in instances]
         all_results = await asyncio.gather(*tasks)
 
