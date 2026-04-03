@@ -73,7 +73,7 @@ async def main():
 
     semaphore = asyncio.Semaphore(10)
 
-    async with niquests.AsyncSession() as client:
+    async with niquests.AsyncSession(multiplexed=False, disable_http2=True, disable_http3=True) as client:
         tasks = [extractLinks(instance, snapshot, client, semaphore) for instance in instances]
         all_results = await asyncio.gather(*tasks)
 

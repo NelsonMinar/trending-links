@@ -36,7 +36,7 @@ async def test_extractLinks(mock_db, mock_mastodon_response):
 
         snapshot_time = 1234567890
         semaphore = asyncio.Semaphore(10)
-        async with niquests.AsyncSession() as client:
+        async with niquests.AsyncSession(multiplexed=False, disable_http2=True, disable_http3=True) as client:
             results = await fetch.extractLinks(instance, snapshot_time, client, semaphore)
 
         # Verify results returned by extractLinks
@@ -83,7 +83,7 @@ async def test_extractLinks_sql_injection(mock_db):
 
         snapshot_time = 1234567890
         semaphore = asyncio.Semaphore(10)
-        async with niquests.AsyncSession() as client:
+        async with niquests.AsyncSession(multiplexed=False, disable_http2=True, disable_http3=True) as client:
             results = await fetch.extractLinks(instance, snapshot_time, client, semaphore)
 
         assert len(results) == 5
@@ -104,7 +104,7 @@ async def test_extractLinks_request_exception(mock_db, capsys):
 
         snapshot_time = 1234567890
         semaphore = asyncio.Semaphore(10)
-        async with niquests.AsyncSession() as client:
+        async with niquests.AsyncSession(multiplexed=False, disable_http2=True, disable_http3=True) as client:
             results = await fetch.extractLinks(instance, snapshot_time, client, semaphore)
 
         # Ensure error was caught and printed

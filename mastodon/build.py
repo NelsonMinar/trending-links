@@ -119,7 +119,7 @@ async def main(con=None):
     print("Old snapshots cleaned up")
 
     semaphore = asyncio.Semaphore(10)
-    async with niquests.AsyncSession() as client:
+    async with niquests.AsyncSession(multiplexed=False, disable_http2=True, disable_http3=True) as client:
         tasks = [fetch_preview(link, client, semaphore) for link in links]
         results = await asyncio.gather(*tasks)
 
