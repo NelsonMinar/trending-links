@@ -1,5 +1,5 @@
 import asyncio
-import niquests
+import httpx
 from datetime import datetime
 import zoneinfo
 import os
@@ -119,7 +119,7 @@ async def main(con=None):
     print("Old snapshots cleaned up")
 
     semaphore = asyncio.Semaphore(10)
-    async with niquests.AsyncSession() as client:
+    async with httpx.AsyncClient(follow_redirects=True) as client:
         tasks = [fetch_preview(link, client, semaphore) for link in links]
         results = await asyncio.gather(*tasks)
 

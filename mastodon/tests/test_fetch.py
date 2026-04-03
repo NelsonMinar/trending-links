@@ -2,8 +2,8 @@ import os
 import sqlite3
 import json
 import pytest
-import niquests
-from unittest.mock import AsyncMock, patch
+import respx
+import httpx
 import asyncio
 from unittest import mock
 
@@ -23,20 +23,14 @@ async def test_extractLinks(mock_db, mock_mastodon_response):
     # Mock the API endpoint
     instance = "example.social"
 
-    with patch('niquests.AsyncSession.get', new_callable=AsyncMock) as mock_get:
-        def side_effect(url, **kwargs):
-            if url != f"https://{instance}/api/v1/trends/links":
-                raise ValueError(f"Unexpected URL: {url}")
-            resp = niquests.Response()
-            resp.status_code = 200
-            resp._content = json.dumps(mock_mastodon_response).encode('utf-8')
-            return resp
-
-        mock_get.side_effect = side_effect
+    with respx.mock:
+        respx.get(f"https://{instance}/api/v1/trends/links").mock(
+            return_value=httpx.Response(200, json=mock_mastodon_response)
+        )
 
         snapshot_time = 1234567890
         semaphore = asyncio.Semaphore(10)
-        async with niquests.AsyncSession() as client:
+        async with httpx.AsyncClient() as client:
             results = await fetch.extractLinks(instance, snapshot_time, client, semaphore)
 
         # Verify results returned by extractLinks
@@ -70,20 +64,14 @@ async def test_extractLinks_sql_injection(mock_db):
         }
     ]
 
-    with patch('niquests.AsyncSession.get', new_callable=AsyncMock) as mock_get:
-        def side_effect(url, **kwargs):
-            if url != f"https://{instance}/api/v1/trends/links":
-                raise ValueError(f"Unexpected URL: {url}")
-            resp = niquests.Response()
-            resp.status_code = 200
-            resp._content = json.dumps(malicious_response).encode('utf-8')
-            return resp
-
-        mock_get.side_effect = side_effect
+    with respx.mock:
+        respx.get(f"https://{instance}/api/v1/trends/links").mock(
+            return_value=httpx.Response(200, json=malicious_response)
+        )
 
         snapshot_time = 1234567890
         semaphore = asyncio.Semaphore(10)
-        async with niquests.AsyncSession() as client:
+        async with httpx.AsyncClient() as client:
             results = await fetch.extractLinks(instance, snapshot_time, client, semaphore)
 
         assert len(results) == 5
@@ -94,17 +82,14 @@ async def test_extractLinks_request_exception(mock_db, capsys):
     con, cur = mock_db
     instance = "error.social"
 
-    with patch('niquests.AsyncSession.get', new_callable=AsyncMock) as mock_get:
-        def side_effect(url, **kwargs):
-            if url != f"https://{instance}/api/v1/trends/links":
-                raise ValueError(f"Unexpected URL: {url}")
-            raise niquests.exceptions.ConnectionError("Connection Error")
-
-        mock_get.side_effect = side_effect
+    with respx.mock:
+        respx.get(f"https://{instance}/api/v1/trends/links").mock(
+            side_effect=httpx.ConnectError("Connection Error")
+        )
 
         snapshot_time = 1234567890
         semaphore = asyncio.Semaphore(10)
-        async with niquests.AsyncSession() as client:
+        async with httpx.AsyncClient() as client:
             results = await fetch.extractLinks(instance, snapshot_time, client, semaphore)
 
         # Ensure error was caught and printed

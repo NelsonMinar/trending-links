@@ -2,8 +2,8 @@ import os
 import sqlite3
 import json
 import pytest
-import niquests
-from unittest.mock import AsyncMock, patch
+import respx
+import httpx
 from unittest import mock
 import sys
 import shutil
@@ -70,17 +70,17 @@ async def test_build_algorithm_and_output(mock_db, test_page_html, tmpdir):
             shutil.copy(os.path.join(real_path, "templates", tpl), os.path.join(tmpdir, "templates", tpl))
         shutil.copy(os.path.join(real_path, "servers.txt"), os.path.join(tmpdir, "servers.txt"))
 
-        with patch('niquests.AsyncSession.get', new_callable=AsyncMock) as mock_get:
-            def side_effect(url, **kwargs):
-                if url not in ("https://example.com/A", "https://example.com/B", "https://example.com/E"):
-                    raise ValueError(f"Unexpected URL: {url}")
-                resp = niquests.Response()
-                resp.status_code = 200
-                resp._content = test_page_html.encode('utf-8')
-                resp.url = url
-                return resp
-
-            mock_get.side_effect = side_effect
+        with respx.mock:
+            # Mock the requests for link previews
+            respx.get("https://example.com/A").mock(
+                return_value=httpx.Response(200, content=test_page_html)
+            )
+            respx.get("https://example.com/B").mock(
+                return_value=httpx.Response(200, content=test_page_html)
+            )
+            respx.get("https://example.com/E").mock(
+                return_value=httpx.Response(200, content=test_page_html)
+            )
 
             # Pass the in-memory DB connection to build.main
             await build.main(con=con)

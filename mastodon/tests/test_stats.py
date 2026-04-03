@@ -2,8 +2,8 @@ import os
 import sqlite3
 import json
 import pytest
-import niquests
-from unittest.mock import AsyncMock, patch
+import respx
+import httpx
 from unittest import mock
 import sys
 from bs4 import BeautifulSoup
@@ -55,17 +55,14 @@ async def test_stats_and_sorting(mock_db, test_page_html, tmpdir):
     for tpl in ["trending-links.json", "trending-links.xml", "trending-links.html"]:
         shutil.copy(os.path.join(real_path, "templates", tpl), os.path.join(tmpdir, "templates", tpl))
 
-    with patch('niquests.AsyncSession.get', new_callable=AsyncMock) as mock_get:
-        def side_effect(url, **kwargs):
-            if url not in ("https://example.com/A", "https://example.com/B"):
-                raise ValueError(f"Unexpected URL: {url}")
-            resp = niquests.Response()
-            resp.status_code = 200
-            resp._content = test_page_html.encode('utf-8')
-            resp.url = url
-            return resp
-
-        mock_get.side_effect = side_effect
+    with respx.mock:
+        # Mock the requests for link previews
+        respx.get("https://example.com/A").mock(
+            return_value=httpx.Response(200, content=test_page_html)
+        )
+        respx.get("https://example.com/B").mock(
+            return_value=httpx.Response(200, content=test_page_html)
+        )
 
         with mock.patch('build.path', str(tmpdir)):
             await build.main(con=con)
