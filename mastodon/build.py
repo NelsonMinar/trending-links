@@ -14,7 +14,6 @@ path = os.path.dirname(__file__)
 
 async def fetch_preview(link, client, semaphore):
     async with semaphore:
-        print("BEGIN:", link['link'])
         try:
             headers = {}
             # To avoid forced login
@@ -42,7 +41,6 @@ async def fetch_preview(link, client, semaphore):
             }
 
             if processed_link['title'] is not None:
-                print("SUCCESS:", link['link'])
                 return processed_link
             else:
                 print("ERROR [PREVIEW]:", link['link'])
@@ -116,12 +114,13 @@ async def main(con=None):
     con.commit()
     con.execute("VACUUM")
 
-    print("Old snapshots cleaned up")
-
     semaphore = asyncio.Semaphore(10)
     async with httpx.AsyncClient(follow_redirects=True) as client:
         tasks = [fetch_preview(link, client, semaphore) for link in links]
         results = await asyncio.gather(*tasks)
+
+    urls_tried = len(results)
+    urls_failed = sum(1 for r in results if r is None)
 
     processed_links = [r for r in results if r is not None]
     link_urls = {link['url'] for link in processed_links}
@@ -183,6 +182,8 @@ async def main(con=None):
     # Write HTML
     with open(os.path.join(path, "output/trending-links.html"), "w") as html_file:
         html_file.write(html_feed)
+
+    print(f"Summary: {urls_tried} URLs tried, {urls_failed} failed.")
 
     if should_close:
         con.close()

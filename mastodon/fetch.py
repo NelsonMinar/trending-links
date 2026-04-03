@@ -49,12 +49,11 @@ async def extractLinks(instance, snapshot, client, semaphore):
                 }
                 results.append(clean_dict(linkMeta))
 
-            print("INSTANCE COMPLETE:", instance)
             return results
 
         except Exception as e:
             print(f"ERROR [{instance}]:", e)
-            return []
+            return None
 
 async def main():
     # Setup DB connection
@@ -69,16 +68,19 @@ async def main():
     with open(os.path.join(path, "servers.txt"), "r") as f:
         instances = [line.strip() for line in f if line.strip()]
 
-    print("SNAPSHOT START:", snapshot)
-
     semaphore = asyncio.Semaphore(10)
 
     async with httpx.AsyncClient(follow_redirects=True) as client:
         tasks = [extractLinks(instance, snapshot, client, semaphore) for instance in instances]
         all_results = await asyncio.gather(*tasks)
 
+    urls_tried = len(all_results)
+    urls_failed = sum(1 for result in all_results if result is None)
+
+    filtered_results = [r for r in all_results if r is not None]
+
     # Flatten results and insert into DB sequentially
-    for instance_results in all_results:
+    for instance_results in filtered_results:
         for clean_meta in instance_results:
             columns = ', '.join(clean_meta.keys())
             placeholders = ', '.join(['?'] * len(clean_meta))
@@ -88,7 +90,7 @@ async def main():
     con.commit()
     con.close()
 
-    print("SNAPSHOT COMPLETE:", snapshot)
+    print(f"Summary: {urls_tried} URLs tried, {urls_failed} failed.")
 
 if __name__ == "__main__":
     asyncio.run(main())
