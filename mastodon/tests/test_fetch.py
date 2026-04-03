@@ -97,4 +97,4 @@ async def test_extractLinks_request_exception(mock_db, capsys):
         assert "ERROR [error.social]:" in captured.out
 
         # Ensure no results were returned
-        assert len(results) == 0
+        assert results is None
