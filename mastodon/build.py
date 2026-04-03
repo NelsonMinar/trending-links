@@ -21,7 +21,12 @@ async def fetch_preview(link, client, semaphore):
                 headers = {'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'}
             # Look like a regular browser
             else:
-                headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36'}
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
+                    "Sec-CH-UA": '"Google Chrome";v="147", "Chromium";v="147", "Not=A?Brand";v="24"',
+                    "Sec-CH-UA-Platform": '"Windows"',
+                    "Sec-CH-UA-Mobile": "?0"
+                }
 
             response = await client.get(link['link'], headers=headers, timeout=10)
             response.raise_for_status()
