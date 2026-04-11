@@ -16,12 +16,15 @@ async def fetch_preview(link, client, semaphore):
     async with semaphore:
         try:
             headers = {}
-            # To avoid forced login
+            # Various site-specific hacks to work around bot blocking
             if "twitter.com" in link['link']:
                 headers = {'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'}
-            # To bypass lemonde.fr client challenge block
             elif "lemonde.fr" in link['link']:
                 headers = {'User-Agent': 'Twitterbot/1.0'}
+            elif "medium.com" in link['link']:
+                headers = {'User-Agent': 'Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)'}
+            elif any(domain in link['link'] for domain in ["washingtonpost.com", "nytimes.com", "axios.com"]):
+                headers = {'User-Agent': 'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)'}
             # Look like a regular browser
             else:
                 headers = {
