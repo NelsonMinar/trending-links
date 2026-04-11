@@ -19,6 +19,9 @@ async def fetch_preview(link, client, semaphore):
             # To avoid forced login
             if "twitter.com" in link['link']:
                 headers = {'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'}
+            # To bypass lemonde.fr client challenge block
+            elif "lemonde.fr" in link['link']:
+                headers = {'User-Agent': 'Twitterbot/1.0'}
             # Look like a regular browser
             else:
                 headers = {
